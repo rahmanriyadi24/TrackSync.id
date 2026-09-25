@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrackSync Indonesia - System Monitoring Perjalanan & Logistik Kereta Api</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        rail: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0265d2',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                            950: '#082f49',
+                        },
+                        accent: {
+                            amber: '#f59e0b',
+                            emerald: '#10b981',
+                            rose: '#f43f5e',
+                            cyan: '#06b6d4'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom Scrollbar for Dashboard Panels */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+        
+        .pulse-active {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        .train-track-line {
+            background-image: repeating-linear-gradient(90deg, #334155 0, #334155 10px, transparent 10px, transparent 20px);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col bg-slate-950 text-slate-100 antialiased overflow-x-hidden">
+
+    <!-- Top Bar Navigation -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Brand Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-tr from-cyan-600 to-blue-600 p-2.5 rounded-xl shadow-md flex items-center justify-center">
+                        <i class="fa-solid fa-train-subway text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">TrackSync Indonesia</span>
+                            <span class="text-xs bg-slate-800 text-cyan-400 font-semibold px-2 py-0.5 rounded border border-cyan-500/30">v2.4 PRO</span>
+                        </div>
+                        <p class="text-xs text-slate-400 hidden sm:block">Sistem Monitoring Perjalanan & Logistik Kereta Api</p>
+                    </div>
+                </div>
+
+                <!-- Live Status & Global Controls -->
+                <div class="flex items-center space-x-4">
+                    <!-- Live Server Badge -->
+                    <div class="hidden md:flex items-center space-x-2 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 px-3 py-1.5 rounded-full text-xs font-medium">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-active"></span>
+                        <span>SERVER LIVE: OPERATIONAL</span>
+                    </div>
+
+                    <!-- Live Clock -->
+                    <div class="bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-300 hidden sm:flex items-center space-x-2">
+                        <i class="fa-regular fa-clock text-cyan-400"></i>
+                        <span id="liveClock">00:00:00 WIB</span>
+                    </div>
+
+                    <!-- Action Button: Add Dynamic Data -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="openModal('modalKA')" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all flex items-center space-x-1 shadow-sm">
+                            <i class="fa-solid fa-plus text-xs"></i>
+                            <span class="hidden sm:inline">Jadwal KA</span>
+                        </button>
+                        <button onclick="openModal('modalLogistik')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all flex items-center space-x-1 shadow-sm">
+                            <i class="fa-solid fa-box-archive text-xs"></i>
+                            <span class="hidden sm:inline">Kargo Baru</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- QUICK METRICS OVERVIEW CARDS -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Metric 1: Total KA Beroperasi -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+                <div class="space-y-1">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total KA Beroperasi</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-2xl font-bold text-slate-100" id="statTotalKA">42</span>
+                        <span class="text-xs font-semibold text-emerald-400"><i class="fa-solid fa-arrow-up text-xs"></i> +4 Hari ini</span>
+                    </div>
+                    <p class="text-xs text-slate-500">28 Penumpang | 14 Logistik</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-400">
+                    <i class="fa-solid fa-train text-xl"></i>
+                </div>
+            </div>
+
+            <!-- Metric 2: OTP (On-Time Performance) -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+                <div class="space-y-1">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Tepat Waktu (OTP)</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-2xl font-bold text-emerald-400" id="statOTP">94.8%</span>
+                        <span class="text-xs font-semibold text-emerald-400"><i class="fa-solid fa-check text-xs"></i> Sangat Baik</span>
+                    </div>
+                    <p class="text-xs text-slate-500">Target Nasional: &ge; 90.0%</p>
+                </div>
+                <div class="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-stopwatch text-xl"></i>
+                </div>
+            </div>
+
+            <!-- Metric 3: Tonase Logistik Hari Ini -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+                <div class="space-y-1">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Tonase Logistik (Hari Ini)</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-2xl font-bold text-slate-100" id="statTonase">18,450</span>
+                        <span class="text-xs text-slate-400">Ton</span>
+                    </div>
+                    <p class="text-xs text-slate-500">320 Gerbong Terdistribusi</p>
+                </div>
+                <div class="w-12 h-12 bg-cyan-500/10 border border-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400">
+                    <i class="fa-solid fa-boxes-stacked text-xl"></i>
+                </div>
+            </div>
+
+            <!-- Metric 4: Kendala & Delay -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+                <div class="space-y-1">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Kendala / Delay Active</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-2xl font-bold text-amber-400" id="statDelay">3</span>
+                        <span class="text-xs text-amber-400/80 font-medium">KA Terdampak</span>
+                    </div>
+                    <p class="text-xs text-slate-500">Rata-rata delay: 12 Menit</p>
+                </div>
+                <div class="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-center text-amber-400">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- NAVIGATION TABS -->
+        <section class="bg-slate-900/80 border border-slate-800 rounded-xl p-1.5 flex flex-wrap gap-1">
+            <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn active-tab flex-1 min-w-[140px] px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center space-x-2 bg-slate-800 text-cyan-400 border border-cyan-500/30 shadow-inner">
+                <i class="fa-solid fa-chart-pie text-sm"></i>
+                <span>Ringkasan Dashboard</span>
+            </button>
+            <button onclick="switchTab('tracking')" id="tab-tracking" class="tab-btn flex-1 min-w-[140px] px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center space-x-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i class="fa-solid fa-route text-sm"></i>
+                <span>Live Tracking Perjalanan</span>
+            </button>
+            <button onclick="switchTab('logistik')" id="tab-logistik" class="tab-btn flex-1 min-w-[140px] px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center space-x-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i class="fa-solid fa-boxes-packing text-sm"></i>
+                <span>Logistik & Kargo</span>
+            </button>
+            <button onclick="switchTab('peta')" id="tab-peta" class="tab-btn flex-1 min-w-[140px] px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center space-x-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i class="fa-solid fa-map-location-dot text-sm"></i>
+                <span>Peta Lintasan Visual</span>
+            </button>
+            <button onclick="switchTab('laporan')" id="tab-laporan" class="tab-btn flex-1 min-w-[140px] px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center space-x-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 relative">
+                <i class="fa-solid fa-bell text-sm"></i>
+                <span>Alert & Gangguan</span>
+                <span class="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2"></span>
+            </button>
+        </section>
+
+        <!-- TAB 1: DASHBOARD OVERVIEW -->
+        <div id="view-overview" class="space-y-6">
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Chart 1: Tonase Logistik per Wilayah -->
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                                <i class="fa-solid fa-chart-column text-cyan-400"></i>
+                                <span>Volume Distribusi Logistik Pekan Ini (Ton)</span>
+                            </h3>
+                            <p class="text-xs text-slate-400">Perbandingan distribusi komoditas kargo utama</p>
+                        </div>
+                        <span class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded border border-slate-700">Update Tiap Jam</span>
+                    </div>
+                    <div class="h-64 relative w-full">
+                        <canvas id="chartLogistik"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: On-Time Performance Gauge/Doughnut -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+                            <span>Status Ketepatan Waktu</span>
+                        </h3>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4">Rasio perjalanan tepat waktu vs keterlambatan</p>
+                    <div class="h-52 relative flex items-center justify-center">
+                        <canvas id="chartOTP"></canvas>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs mt-4 pt-3 border-t border-slate-800">
+                        <div>
+                            <span class="block text-slate-400">Tepat Waktu</span>
+                            <span class="font-bold text-emerald-400">94.8%</span>
+                        </div>
+                        <div>
+                            <span class="block text-slate-400">Delay &lt;15m</span>
+                            <span class="font-bold text-amber-400">3.8%</span>
+                        </div>
+                        <div>
+                            <span class="block text-slate-400">Delay &gt;15m</span>
+                            <span class="font-bold text-rose-400">1.4%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Feed & Busiest Freight Hubs -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Live Activity Feed -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                            <i class="fa-solid fa-bolt text-amber-400"></i>
+                            <span>Aktivitas Perjalanan & Kargo Terkini</span>
+                        </h3>
+                        <span class="text-xs text-cyan-400 hover:underline cursor-pointer" onclick="switchTab('tracking')">Lihat Semua</span>
+                    </div>
+                    <div class="space-y-3.5" id="recentActivityList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Critical Freight Hub Status -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                            <i class="fa-solid fa-warehouse text-blue-400"></i>
+                            <span>Kepadatan Terminal Logistik Utama</span>
+                        </h3>
+                        <span class="text-xs text-slate-400">Kapasitas Depo</span>
+                    </div>
+                    <div class="space-y-4">
+                        <!-- Hub 1 -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="font-semibold text-slate-200">Terminal Kargo Kalimas (Surabaya)</span>
+                                <span class="text-emerald-400 font-mono">68% Terpakai</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2.5">
+                                <div class="bg-emerald-500 h-2.5 rounded-full" style="width: 68%"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-0.5 block">Kapasitas: 1,200 TEUs | Bongkar Muat Active</span>
+                        </div>
+                        <!-- Hub 2 -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="font-semibold text-slate-200">Stasiun Kargo Gedebage (Bandung)</span>
+                                <span class="text-amber-400 font-mono">84% Terpakai</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2.5">
+                                <div class="bg-amber-500 h-2.5 rounded-full" style="width: 84%"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-0.5 block">Kapasitas: 850 TEUs | Mendekati Batas Normal</span>
+                        </div>
+                        <!-- Hub 3 -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="font-semibold text-slate-200">Terminal Logistik Sungai Lagoa (Jakarta)</span>
+                                <span class="text-emerald-400 font-mono">52% Terpakai</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2.5">
+                                <div class="bg-emerald-500 h-2.5 rounded-full" style="width: 52%"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-0.5 block">Kapasitas: 2,000 TEUs | Lintas Curah & Petikemas</span>
+                        </div>
+                        <!-- Hub 4 -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="font-semibold text-slate-200">Stasiun Kargo Kertapati (Palembang)</span>
+                                <span class="text-rose-400 font-mono">92% Terpakai</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2.5">
+                                <div class="bg-rose-500 h-2.5 rounded-full" style="width: 92%"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-0.5 block">Kapasitas: 3,500 Ton Batu Bara | Antrean Pengisian</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: LIVE TRACKING PERJALANAN KERETA -->
+        <div id="view-tracking" class="space-y-4 hidden">
+            <!-- Filter & Search Controls -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-3 items-center justify-between">
+                <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                    <!-- Search Input -->
+                    <div class="relative min-w-[240px] flex-1 sm:flex-none">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchKATracking" onkeyup="filterTrackingData()" placeholder="Cari No. KA, Nama Kereta..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+                    </div>
+
+                    <!-- Filter Wilayah/Jalur -->
+                    <select id="filterWilayah" onchange="filterTrackingData()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                        <option value="ALL">Semua Jalur Lintasan</option>
+                        <option value="Utara">Jalur Utara Jawa</option>
+                        <option value="Selatan">Jalur Selatan Jawa</option>
+                        <option value="Sumatra">Sumatra Logistik</option>
+                    </select>
+
+                    <!-- Filter Jenis KA -->
+                    <select id="filterJenisKA" onchange="filterTrackingData()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                        <option value="ALL">Semua Jenis Kereta</option>
+                        <option value="Penumpang">Kereta Penumpang</option>
+                        <option value="Logistik">Kereta Logistik / Kargo</option>
+                    </select>
+
+                    <!-- Filter Status -->
+                    <select id="filterStatus" onchange="filterTrackingData()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                        <option value="ALL">Semua Status Status</option>
+                        <option value="Tepat Waktu">Tepat Waktu (On-Time)</option>
+                        <option value="Delay">Mengalami Delay</option>
+                        <option value="Berhenti">Berhenti / Transit</option>
+                    </select>
+                </div>
+
+                <div class="text-xs text-slate-400">
+                    Menampilkan <span id="countKA" class="font-bold text-cyan-400">0</span> armada aktif
+                </div>
+            </div>
+
+            <!-- Table Live Tracking -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-950/80 text-slate-400 uppercase text-[11px] font-semibold tracking-wider border-b border-slate-800">
+                            <tr>
+                                <th class="p-3.5">No & Nama KA</th>
+                                <th class="p-3.5">Tipe & Rute</th>
+                                <th class="p-3.5">Posisi Terkini</th>
+                                <th class="p-3.5">Stasiun Tujuan & ETA</th>
+                                <th class="p-3.5">Progress Perjalanan</th>
+                                <th class="p-3.5">Status</th>
+                                <th class="p-3.5 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trackingTableBody" class="divide-y divide-slate-800/60">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: MANAJEMEN LOGISTIK & KARGO -->
+        <div id="view-logistik" class="space-y-6 hidden">
+            <!-- Resi & Express Tracking Search Header -->
+            <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 border border-slate-800 rounded-xl p-5 shadow-lg">
+                <div class="max-w-2xl">
+                    <h3 class="text-base font-bold text-slate-100 mb-1 flex items-center space-x-2">
+                        <i class="fa-solid fa-barcode text-cyan-400"></i>
+                        <span>Pencarian Manifest Kargo & Resi Logistik Kereta Api</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Lakukan pelacakan langsung posisi kontainer, tonase gerbong, dan status pengiriman barang.</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="inputResiSearch" placeholder="Masukkan ID Resi / Tracking No (contoh: LOG-2026-881)" class="bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-xs text-slate-100 flex-1 focus:outline-none focus:border-cyan-500 font-mono">
+                        <button onclick="searchResi()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+                            Lacak Kargo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resi Search Result Container (Hidden by default) -->
+            <div id="resiResultCard" class="hidden bg-slate-900 border border-cyan-500/40 rounded-xl p-4 transition-all">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-cyan-500/10 p-2 rounded-lg border border-cyan-500/30 text-cyan-400">
+                            <i class="fa-solid fa-box-open text-lg"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400">Nomor Resi / Waybill:</span>
+                            <p class="text-sm font-mono font-bold text-cyan-400" id="resCardNo">LOG-2026-881</p>
+                        </div>
+                    </div>
+                    <span id="resCardStatus" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">DALAM PERJALANAN</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                    <div>
+                        <span class="text-slate-400 block">Pengirim:</span>
+                        <span class="font-semibold text-slate-200" id="resCardSender">PT Semen Indonesia</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block">Komoditas:</span>
+                        <span class="font-semibold text-slate-200" id="resCardCommodity">Semen Sak & Bulk</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block">Total Tonase / Gerbong:</span>
+                        <span class="font-semibold text-slate-200" id="resCardWeight">450 Ton (15 Gerbong)</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block">Diangkut KA:</span>
+                        <span class="font-semibold text-cyan-400" id="resCardKA">KA 2702 Goods Express</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Freight List & Wagon Details Table -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                            <i class="fa-solid fa-boxes-stacked text-blue-400"></i>
+                            <span>Daftar Pengiriman Kargo Aktif</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Monitoring muatan gerbong, tonase, dan estimasi waktu sampai</p>
+                    </div>
+                    <button onclick="openModal('modalLogistik')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center space-x-1">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        <span>Input Kargo Baru</span>
+                    </button>
+                </div>
+
+                <!-- Table Freight -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-950/80 text-slate-400 uppercase text-[11px] font-semibold tracking-wider border-b border-slate-800">
+                            <tr>
+                                <th class="p-3">Tracking ID</th>
+                                <th class="p-3">Pengirim / Klien</th>
+                                <th class="p-3">Jenis Barang</th>
+                                <th class="p-3">Jumlah Gerbong</th>
+                                <th class="p-3">Total Tonase</th>
+                                <th class="p-3">Asal & Destination</th>
+                                <th class="p-3">Status Pengiriman</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logistikTableBody" class="divide-y divide-slate-800/60">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: PETA / VISUAL ROUTE INDICATOR -->
+        <div id="view-peta" class="space-y-6 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                            <i class="fa-solid fa-map-location-dot text-cyan-400"></i>
+                            <span>Skema Jalur Lintasan Rel Utama (Visual Route Diagram)</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Visualisasi posisi stasiun transit utama, sinyal, dan lokasi KA beroperasi</p>
+                    </div>
+                    <div class="flex items-center space-x-3 text-xs">
+                        <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> <span>Stasiun Normal</span></span>
+                        <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> <span>KA Beroperasi</span></span>
+                        <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> <span>Perbaikan Line</span></span>
+                    </div>
+                </div>
+
+                <!-- Jalur Utama Utara Diagram -->
+                <div class="space-y-6 py-4">
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center space-x-2">
+                            <i class="fa-solid fa-train text-cyan-400"></i>
+                            <span>Lintasan Utama Jalur Utara Jawa (Jakarta Gambir - Surabaya Pasarturi)</span>
+                        </h4>
+                        <!-- Track Container -->
+                        <div class="relative py-8 px-4 bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto">
+                            <!-- Rail Line Graphic -->
+                            <div class="absolute top-1/2 left-8 right-8 h-2 train-track-line transform -translate-y-1/2 rounded z-0"></div>
+
+                            <!-- Track Stations Nodes -->
+                            <div class="relative z-10 flex justify-between min-w-[700px] px-4">
+                                <!-- Station 1 -->
+                                <div class="flex flex-col items-center group">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">KM 0+000</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400 shadow-md">
+                                        GMR
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Gambir</span>
+                                    <span class="text-[10px] text-slate-500">Jakarta</span>
+                                </div>
+
+                                <!-- Station 2 -->
+                                <div class="flex flex-col items-center group">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">KM 153+000</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400 shadow-md">
+                                        CN
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Cirebon</span>
+                                    <span class="text-[10px] text-emerald-400 font-semibold">KA 7002 (Kargo)</span>
+                                </div>
+
+                                <!-- Active Train Moving Node -->
+                                <div class="flex flex-col items-center group relative -top-3">
+                                    <div class="bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[10px] px-2 py-0.5 rounded-full font-mono mb-1 pulse-active">
+                                        KA 1 Argo Bromo (98 km/h)
+                                    </div>
+                                    <div class="w-10 h-10 rounded-full bg-cyan-600 border-2 border-white flex items-center justify-center text-white shadow-lg animate-bounce">
+                                        <i class="fa-solid fa-train text-sm"></i>
+                                    </div>
+                                    <span class="text-[10px] text-cyan-400 font-medium mt-1">Petak Tegal - Semarang</span>
+                                </div>
+
+                                <!-- Station 3 -->
+                                <div class="flex flex-col items-center group">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">KM 440+000</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-amber-500 flex items-center justify-center text-xs font-bold text-amber-400 shadow-md">
+                                        SMT
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Semarang Tawang</span>
+                                    <span class="text-[10px] text-amber-400 font-semibold">Perawatan Jalur H-2</span>
+                                </div>
+
+                                <!-- Station 4 -->
+                                <div class="flex flex-col items-center group">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">KM 720+000</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400 shadow-md">
+                                        SBI
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Pasarturi</span>
+                                    <span class="text-[10px] text-slate-500">Surabaya</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lintasan Selatan Jawa -->
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center space-x-2">
+                            <i class="fa-solid fa-train text-blue-400"></i>
+                            <span>Lintasan Jalur Selatan Jawa (Bandung - Yogyakarta - Solobalapan)</span>
+                        </h4>
+                        <!-- Track Container -->
+                        <div class="relative py-8 px-4 bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto">
+                            <div class="absolute top-1/2 left-8 right-8 h-2 train-track-line transform -translate-y-1/2 rounded z-0"></div>
+
+                            <div class="relative z-10 flex justify-between min-w-[700px] px-4">
+                                <div class="flex flex-col items-center">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">BD</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400">
+                                        BD
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Bandung</span>
+                                </div>
+
+                                <div class="flex flex-col items-center">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">KTA</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400">
+                                        KTA
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Kutoarjo</span>
+                                </div>
+
+                                <div class="flex flex-col items-center">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">YK</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400">
+                                        YK
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Yogyakarta</span>
+                                </div>
+
+                                <div class="flex flex-col items-center">
+                                    <span class="text-[10px] font-mono text-slate-400 mb-2">SLO</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-400">
+                                        SLO
+                                    </div>
+                                    <span class="text-xs font-semibold text-slate-200 mt-2">Solobalapan</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: ALERT & NOTIFIKASI GANGGUAN -->
+        <div id="view-laporan" class="space-y-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Active Alerts List -->
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                            <span>Daftar Peringatan & Kendala Lapangan</span>
+                        </h3>
+                        <span class="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-semibold">3 Alert Aktif</span>
+                    </div>
+
+                    <div class="space-y-3" id="alertListContainer">
+                        <!-- Alert Item 1 -->
+                        <div class="bg-slate-950 border-l-4 border-amber-500 border-y border-r border-slate-800 rounded-r-xl p-4 flex justify-between items-start">
+                            <div class="space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs font-bold text-amber-400">[CUACA EKSTREM]</span>
+                                    <span class="text-xs text-slate-200 font-semibold">Kecepatan Angin Tinggi di Petak Pekalongan - Semarang</span>
+                                </div>
+                                <p class="text-xs text-slate-400">Diberlakukan pembatasan kecepatan maksimum (Vmax 40 km/jam) demi keselamatan perjalanan KA Penumpang & Kargo.</p>
+                                <div class="text-[11px] text-slate-500 pt-1 flex items-center space-x-3">
+                                    <span><i class="fa-regular fa-clock"></i> dilaporkan: 25 Min lalu</span>
+                                    <span><i class="fa-solid fa-user-shield"></i> Tim Pengawas Petak 4</span>
+                                </div>
+                            </div>
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded">Prioritas Sedang</span>
+                        </div>
+
+                        <!-- Alert Item 2 -->
+                        <div class="bg-slate-950 border-l-4 border-rose-500 border-y border-r border-slate-800 rounded-r-xl p-4 flex justify-between items-start">
+                            <div class="space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs font-bold text-rose-400">[GANGGUAN SINYAL]</span>
+                                    <span class="text-xs text-slate-200 font-semibold">Sinyal Masuk Stasiun Cikampek Mengalami Penurunan Voltase</span>
+                                </div>
+                                <p class="text-xs text-slate-400">Pemanduan perpindahan jalur dilakukan secara manual oleh Petugas Pengatur Perjalanan Kereta Api (PPKA).</p>
+                                <div class="text-[11px] text-slate-500 pt-1 flex items-center space-x-3">
+                                    <span><i class="fa-regular fa-clock"></i> dilaporkan: 40 Min lalu</span>
+                                    <span><i class="fa-solid fa-wrench"></i> Tim Teknisi Sintelis</span>
+                                </div>
+                            </div>
+                            <span class="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-1 rounded">Prioritas Tinggi</span>
+                        </div>
+
+                        <!-- Alert Item 3 -->
+                        <div class="bg-slate-950 border-l-4 border-cyan-500 border-y border-r border-slate-800 rounded-r-xl p-4 flex justify-between items-start">
+                            <div class="space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs font-bold text-cyan-400">[PERBAIKAN REL]</span>
+                                    <span class="text-xs text-slate-200 font-semibold">Perawatan Rutin Bantalan Beton KM 210+400 Jalur Selatan</span>
+                                </div>
+                                <p class="text-xs text-slate-400">Pekerjaan perawatan rel terjadwal. Tidak mengganggu lalu lintas utama, hanya pengalihan ke jalur ganda cadangan.</p>
+                                <div class="text-[11px] text-slate-500 pt-1 flex items-center space-x-3">
+                                    <span><i class="fa-regular fa-clock"></i> dilaporkan: 2 Jam lalu</span>
+                                    <span><i class="fa-solid fa-person-digging"></i> Tim Prasana Daop 6</span>
+                                </div>
+                            </div>
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded">Informatif</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Report Kendala Baru -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <h3 class="text-sm font-bold text-slate-100 border-b border-slate-800 pb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-bullhorn text-cyan-400"></i>
+                        <span>Buat Laporan Kendala Lapangan</span>
+                    </h3>
+                    <form onsubmit="handleReportSubmit(event)" class="space-y-3 text-xs">
+                        <div>
+                            <label class="block text-slate-400 mb-1">Tipe Kendala / Insiden</label>
+                            <select id="repType" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500">
+                                <option value="CUACA">Cuaca Ekstrem / Banjir</option>
+                                <option value="SINYAL">Gangguan Persinyalan</option>
+                                <option value="PRASARANA">Kerusakan Rel / Prasarana</option>
+                                <option value="SARANA">Kendala Kendaraan / Lokomotif</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Lokasi / Petak Stasiun</label>
+                            <input type="text" id="repLocation" required placeholder="misal: Cirebon - Brebes KM 180" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Tingkat Prioritas</label>
+                            <select id="repPriority" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500">
+                                <option value="Tinggi">Tinggi (Resiko Delay &gt; 30 min)</option>
+                                <option value="Sedang" selected>Sedang (Resiko Delay &lt; 15 min)</option>
+                                <option value="Rendah">Rendah / Peringatan Waspada</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Deskripsi Detail Kendala</label>
+                            <textarea id="repDesc" rows="3" required placeholder="Tuliskan keterangan detail kondisi di lintasan..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-lg transition text-xs shadow-md">
+                            Kirim Laporan Peringatan
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL 1: TAMBAH JADWAL KA BARU -->
+    <div id="modalKA" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="closeModal('modalKA')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-base font-bold text-slate-100 mb-1 flex items-center space-x-2">
+                <i class="fa-solid fa-train text-cyan-400"></i>
+                <span>Tambah Jadwal Perjalanan KA</span>
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">Input simulasi keberangkatan armada kereta api baru</p>
+
+            <form onsubmit="addTrainSchedule(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">Nomor & Nama Kereta</label>
+                    <input type="text" id="kaNama" required placeholder="contoh: KA 12 Argo Parahyangan" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Jenis Kereta</label>
+                        <select id="kaTipe" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500">
+                            <option value="Penumpang">Penumpang</option>
+                            <option value="Logistik">Logistik / Kargo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Wilayah / Jalur</label>
+                        <select id="kaWilayah" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500">
+                            <option value="Utara">Utara Jawa</option>
+                            <option value="Selatan">Selatan Jawa</option>
+                            <option value="Sumatra">Sumatra</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Rute (Asal - Tujuan)</label>
+                    <input type="text" id="kaRute" required placeholder="contoh: Gambir (GMR) - Bandung (BD)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Posisi Stasiun Saat Ini</label>
+                        <input type="text" id="kaPosisi" required placeholder="contoh: Cikampek" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">ETA (Estimasi Tiba)</label>
+                        <input type="time" id="kaETA" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500">
+                    </div>
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('modalKA')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-semibold">Simpan Jadwal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: INPUT LOGISTIK / KARGO BARU -->
+    <div id="modalLogistik" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="closeModal('modalLogistik')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-base font-bold text-slate-100 mb-1 flex items-center space-x-2">
+                <i class="fa-solid fa-box-archive text-blue-400"></i>
+                <span>Input Resi Kargo Logistik Baru</span>
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">Pendaftaran pengiriman barang via moda Kereta Logistik</p>
+
+            <form onsubmit="addCargoData(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">Pengirim / Perusahaan Klien</label>
+                    <input type="text" id="logPengirim" required placeholder="contoh: PT Krakatau Steel" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Jenis Muatan/Barang</label>
+                        <select id="logJenis" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                            <option value="Peti Kemas / Container">Peti Kemas / Container</option>
+                            <option value="Batu Bara / Semen">Batu Bara / Semen</option>
+                            <option value="BBM / CPO Liquid">BBM / CPO Liquid</option>
+                            <option value="Paket Express">Paket Express Logistik</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Total Tonase (Ton)</label>
+                        <input type="number" id="logTonase" required placeholder="contoh: 320" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Stasiun Asal</label>
+                        <input type="text" id="logAsal" required placeholder="contoh: Cilegon" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Stasiun Tujuan</label>
+                        <input type="text" id="logTujuan" required placeholder="contoh: Surabaya Kalimas" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Jumlah Gerbong</label>
+                    <input type="number" id="logGerbong" required placeholder="contoh: 12 Gerbong" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('modalLogistik')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold">Daftarkan Kargo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast Element -->
+    <div id="toastNotification" class="fixed bottom-5 right-5 bg-slate-800 border border-cyan-500/50 text-slate-100 text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-lg" id="toastIcon"></i>
+        <span id="toastMessage">Pesan Notifikasi</span>
+    </div>
+
+    <script>
+        // --- DATA STORE (INITIAL MOCK DATA) ---
+        let trainData = [
+            {
+                id: "KA-001",
+                nama: "KA 1 Argo Bromo Anggrek",
+                tipe: "Penumpang",
+                wilayah: "Utara",
+                rute: "Gambir (GMR) - Surabaya Pasarturi (SBI)",
+                posisi: "Petak Tegal - Semarang",
+                tujuan: "Surabaya Pasarturi",
+                eta: "17:15 WIB",
+                progress: 65,
+                status: "Tepat Waktu",
+                kecepatan: "98 km/h"
+            },
+            {
+                id: "KA-2702",
+                nama: "KA 2702 Goods Express",
+                tipe: "Logistik",
+                wilayah: "Utara",
+                rute: "Kalimas (SBK) - Sungai Lagoa (SLG)",
+                posisi: "Stasiun Cirebon Prujakan",
+                tujuan: "Sungai Lagoa (Jakarta)",
+                eta: "20:40 WIB",
+                progress: 45,
+                status: "Tepat Waktu",
+                kecepatan: "75 km/h"
+            },
+            {
+                id: "KA-122",
+                nama: "KA 122 Bangunkarta",
+                tipe: "Penumpang",
+                wilayah: "Selatan",
+                rute: "Pasar Senen (PSE) - Jombang (JG)",
+                posisi: "Stasiun Solobalapan",
+                tujuan: "Jombang",
+                eta: "19:10 WIB",
+                progress: 80,
+                status: "Delay",
+                delayMin: 14,
+                kecepatan: "0 km/h (Transit)"
+            },
+            {
+                id: "KA-2501",
+                nama: "KA 2501 Semen Indonesia",
+                tipe: "Logistik",
+                wilayah: "Selatan",
+                rute: "Arjawinangun - Purwokerto",
+                posisi: "Stasiun Bumiayu",
+                tujuan: "Purwokerto",
+                eta: "16:50 WIB",
+                progress: 90,
+                status: "Tepat Waktu",
+                kecepatan: "60 km/h"
+            },
+            {
+                id: "KA-08",
+                nama: "KA 8 Taksaka Utama",
+                tipe: "Penumpang",
+                wilayah: "Selatan",
+                rute: "Gambir (GMR) - Yogyakarta (YK)",
+                posisi: "Petak Kutoarjo - Patukan",
+                tujuan: "Yogyakarta",
+                eta: "15:30 WIB",
+                progress: 92,
+                status: "Tepat Waktu",
+                kecepatan: "102 km/h"
+            },
+            {
+                id: "KA-3004",
+                nama: "KA 3004 Batu Bara Sumsel",
+                tipe: "Logistik",
+                wilayah: "Sumatra",
+                rute: "Tanjung Enim - Kertapati",
+                posisi: "Petak Muara Enim",
+                tujuan: "Kertapati",
+                eta: "21:00 WIB",
+                progress: 30,
+                status: "Delay",
+                delayMin: 22,
+                kecepatan: "45 km/h"
+            }
+        ];
+
+        let cargoData = [
+            {
+                id: "LOG-2026-881",
+                pengirim: "PT Semen Indonesia",
+                jenis: "Semen Sak & Bulk",
+                gerbong: 15,
+                tonase: 450,
+                asal: "Gresik",
+                tujuan: "Cirebon",
+                kaAssigned: "KA 2501 Semen Indonesia",
+                status: "Dalam Perjalanan"
+            },
+            {
+                id: "LOG-2026-882",
+                pengirim: "PT Krakatau Steel Tbk",
+                jenis: "Peti Kemas / Steel Coil",
+                gerbong: 20,
+                tonase: 600,
+                asal: "Cilegon",
+                tujuan: "Surabaya Kalimas",
+                kaAssigned: "KA 2702 Goods Express",
+                status: "Dalam Perjalanan"
+            },
+            {
+                id: "LOG-2026-883",
+                pengirim: "PT Pertamina Patra Niaga",
+                jenis: "BBM / Tanki High Cargo",
+                gerbong: 18,
+                tonase: 540,
+                asal: "Rewulu (Yogyakarta)",
+                tujuan: "Madiun",
+                kaAssigned: "KA 2604 Fuel Freight",
+                status: "Proses Bongkar Muat"
+            },
+            {
+                id: "LOG-2026-884",
+                pengirim: "PT Bukit Asam Tbk",
+                jenis: "Batu Bara Curah",
+                gerbong: 30,
+                tonase: 1500,
+                asal: "Tanjung Enim",
+                tujuan: "Kertapati",
+                kaAssigned: "KA 3004 Batu Bara Sumsel",
+                status: "Dalam Perjalanan"
+            }
+        ];
+
+        let activityFeedData = [
+            {
+                time: "14:22 WIB",
+                title: "KA 1 Argo Bromo Melintas Tepat Waktu",
+                desc: "Melewati Stasiun Brebes (KM 172) dengan kecepatan rata-rata 98 km/jam.",
+                icon: "fa-circle-check",
+                color: "text-emerald-400"
+            },
+            {
+                time: "14:05 WIB",
+                title: "Pemuatan Kargo LOG-2026-882 Selesai",
+                desc: "Total 600 Ton Baja Roll terpasang pada 20 gerbong datar Kalimas.",
+                icon: "fa-boxes-packing",
+                color: "text-cyan-400"
+            },
+            {
+                time: "13:48 WIB",
+                title: "KA 122 Bangunkarta Mengalami Waspada Delay",
+                desc: "Antrean masuk stasiun persilangan Solobalapan (+14 Menit).",
+                icon: "fa-triangle-exclamation",
+                color: "text-amber-400"
+            }
+        ];
+
+        // --- CHART INSTANCES ---
+        let chartLogistikInstance = null;
+        let chartOTPInstance = null;
+
+        // --- APP INITIALIZATION ---
+        window.onload = function() {
+            startLiveClock();
+            renderCharts();
+            renderActivityFeed();
+            renderTrackingTable();
+            renderLogistikTable();
+            updateQuickStats();
+
+            // Auto periodic update simulator
+            setInterval(simulateRealtimeUpdates, 7000);
+        };
+
+        // Live Clock Function
+        function startLiveClock() {
+            function updateClock() {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                document.getElementById('liveClock').innerText = `${hours}:${minutes}:${seconds} WIB`;
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        // --- TAB SWITCHING SYSTEM ---
+        function switchTab(tabName) {
+            const tabs = ['overview', 'tracking', 'logistik', 'peta', 'laporan'];
+            
+            tabs.forEach(tab => {
+                const viewEl = document.getElementById(`view-${tab}`);
+                const tabBtn = document.getElementById(`tab-${tab}`);
+                
+                if (tab === tabName) {
+                    viewEl.classList.remove('hidden');
+                    tabBtn.classList.add('bg-slate-800', 'text-cyan-400', 'border', 'border-cyan-500/30', 'shadow-inner');
+                    tabBtn.classList.remove('text-slate-400');
+                } else {
+                    viewEl.classList.add('hidden');
+                    tabBtn.classList.remove('bg-slate-800', 'text-cyan-400', 'border', 'border-cyan-500/30', 'shadow-inner');
+                    tabBtn.classList.add('text-slate-400');
+                }
+            });
+        }
+
+        // --- CHART RENDERING (Chart.js) ---
+        function renderCharts() {
+            // Chart 1: Bar Chart Logistik Tonase
+            const ctxLogistik = document.getElementById('chartLogistik').getContext('2d');
+            chartLogistikInstance = new Chart(ctxLogistik, {
+                type: 'bar',
+                data: {
+                    labels: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
+                    datasets: [
+                        {
+                            label: 'Peti Kemas & Container (Ton)',
+                            data: [4200, 5100, 4800, 5900, 6200, 3800, 2900],
+                            backgroundColor: '#0284c7',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Batu Bara & Semen (Ton)',
+                            data: [8500, 9200, 8900, 9600, 10400, 7100, 6500],
+                            backgroundColor: '#06b6d4',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'BBM & Liquid Cargo (Ton)',
+                            data: [2100, 2300, 2000, 2400, 2600, 1900, 1800],
+                            backgroundColor: '#f59e0b',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#cbd5e1', font: { size: 11 } },
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+
+            // Chart 2: Doughnut Chart OTP Performance
+            const ctxOTP = document.getElementById('chartOTP').getContext('2d');
+            chartOTPInstance = new Chart(ctxOTP, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Tepat Waktu', 'Delay < 15 Min', 'Delay > 15 Min'],
+                    datasets: [{
+                        data: [94.8, 3.8, 1.4],
+                        backgroundColor: ['#10b981', '#f59e0b', '#f43f5e'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- RENDER ACTIVITY FEED ---
+        function renderActivityFeed() {
+            const container = document.getElementById('recentActivityList');
+            container.innerHTML = activityFeedData.map(item => `
+                <div class="flex items-start space-x-3 p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                    <div class="mt-0.5 ${item.color}">
+                        <i class="fa-solid ${item.icon} text-sm"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-xs font-semibold text-slate-200">${item.title}</h4>
+                            <span class="text-[10px] text-slate-500 font-mono">${item.time}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-0.5">${item.desc}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- RENDER TRACKING TABLE ---
+        function renderTrackingTable(filteredData = null) {
+            const dataToRender = filteredData || trainData;
+            const tbody = document.getElementById('trackingTableBody');
+            document.getElementById('countKA').innerText = dataToRender.length;
+
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-6 text-slate-500 italic">
+                            Tidak ada data kereta api yang sesuai dengan filter pencarian.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = dataToRender.map(ka => {
+                const isDelay = ka.status.includes('Delay');
+                const statusBadgeClass = isDelay 
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' 
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-3">
+                            <div class="font-bold text-slate-100 flex items-center space-x-2">
+                                <i class="fa-solid ${ka.tipe === 'Penumpang' ? 'fa-train text-cyan-400' : 'fa-train-freight text-blue-400'}"></i>
+                                <span>${ka.nama}</span>
+                            </div>
+                            <span class="text-[10px] text-slate-500 font-mono">ID: ${ka.id}</span>
+                        </td>
+                        <td class="p-3">
+                            <span class="inline-block px-2 py-0.5 text-[10px] rounded font-semibold ${ka.tipe === 'Penumpang' ? 'bg-cyan-950 text-cyan-300 border border-cyan-800' : 'bg-blue-950 text-blue-300 border border-blue-800'} mb-1">${ka.tipe}</span>
+                            <div class="text-slate-300 text-[11px]">${ka.rute}</div>
+                        </td>
+                        <td class="p-3">
+                            <div class="font-medium text-slate-200">${ka.posisi}</div>
+                            <div class="text-[10px] text-slate-400"><i class="fa-solid fa-gauge-high"></i> ${ka.kecepatan}</div>
+                        </td>
+                        <td class="p-3">
+                            <div class="text-slate-200 font-medium">${ka.tujuan}</div>
+                            <div class="text-[10px] text-cyan-400 font-mono">ETA: ${ka.eta}</div>
+                        </td>
+                        <td class="p-3 min-w-[140px]">
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                                <span>Progress</span>
+                                <span class="font-bold text-slate-200">${ka.progress}%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 rounded-full h-1.5 border border-slate-800">
+                                <div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full" style="width: ${ka.progress}%"></div>
+                            </div>
+                        </td>
+                        <td class="p-3">
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusBadgeClass} inline-flex items-center space-x-1">
+                                <span class="w-1.5 h-1.5 rounded-full ${isDelay ? 'bg-amber-400' : 'bg-emerald-400'}"></span>
+                                <span>${ka.status} ${isDelay ? `(+${ka.delayMin}m)` : ''}</span>
+                            </span>
+                        </td>
+                        <td class="p-3 text-center">
+                            <button onclick="showTrainDetails('${ka.id}')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded text-[11px] font-medium border border-slate-700 transition">
+                                Detail
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // --- FILTER TRACKING DATA ---
+        function filterTrackingData() {
+            const query = document.getElementById('searchKATracking').value.toLowerCase();
+            const wilayah = document.getElementById('filterWilayah').value;
+            const tipe = document.getElementById('filterJenisKA').value;
+            const status = document.getElementById('filterStatus').value;
+
+            const filtered = trainData.filter(item => {
+                const matchQuery = item.nama.toLowerCase().includes(query) || item.id.toLowerCase().includes(query) || item.rute.toLowerCase().includes(query);
+                const matchWilayah = (wilayah === 'ALL') || (item.wilayah === wilayah);
+                const matchTipe = (tipe === 'ALL') || (item.tipe === tipe);
+                const matchStatus = (status === 'ALL') || 
+                                    (status === 'Tepat Waktu' && item.status === 'Tepat Waktu') ||
+                                    (status === 'Delay' && item.status.includes('Delay')) ||
+                                    (status === 'Berhenti' && item.kecepatan.includes('0 km/h'));
+
+                return matchQuery && matchWilayah && matchTipe && matchStatus;
+            });
+
+            renderTrackingTable(filtered);
+        }
+
+        // --- RENDER LOGISTIK TABLE ---
+        function renderLogistikTable() {
+            const tbody = document.getElementById('logistikTableBody');
+            tbody.innerHTML = cargoData.map(c => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3 font-mono font-bold text-cyan-400">${c.id}</td>
+                    <td class="p-3 font-medium text-slate-200">${c.pengirim}</td>
+                    <td class="p-3 text-slate-300">${c.jenis}</td>
+                    <td class="p-3 text-slate-300 font-mono">${c.gerbong} Gerbong</td>
+                    <td class="p-3 font-bold text-slate-100 font-mono">${c.tonase} Ton</td>
+                    <td class="p-3 text-slate-400">${c.asal} &rarr; ${c.tujuan}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                            ${c.status}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // --- RESI SEARCH FUNCTION ---
+        function searchResi() {
+            const query = document.getElementById('inputResiSearch').value.trim().toUpperCase();
+            if (!query) {
+                showToast("Masukkan nomor resi kargo terlebih dahulu", "warning");
+                return;
+            }
+
+            const found = cargoData.find(c => c.id.toUpperCase() === query);
+            const resCard = document.getElementById('resiResultCard');
+
+            if (found) {
+                document.getElementById('resCardNo').innerText = found.id;
+                document.getElementById('resCardSender').innerText = found.pengirim;
+                document.getElementById('resCardCommodity').innerText = found.jenis;
+                document.getElementById('resCardWeight').innerText = `${found.tonase} Ton (${found.gerbong} Gerbong)`;
+                document.getElementById('resCardKA').innerText = found.kaAssigned;
+                
+                resCard.classList.remove('hidden');
+                showToast(`Data resi ${found.id} ditemukan`, "success");
+            } else {
+                resCard.classList.add('hidden');
+                showToast(`Nomor resi ${query} tidak ditemukan dalam database!`, "error");
+            }
+        }
+
+        // --- MODAL CONTROLS ---
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // --- ADD NEW SCHEDULE ---
+        function addTrainSchedule(e) {
+            e.preventDefault();
+            const nama = document.getElementById('kaNama').value;
+            const tipe = document.getElementById('kaTipe').value;
+            const wilayah = document.getElementById('kaWilayah').value;
+            const rute = document.getElementById('kaRute').value;
+            const posisi = document.getElementById('kaPosisi').value;
+            const eta = document.getElementById('kaETA').value;
+
+            const newKA = {
+                id: `KA-${Math.floor(100 + Math.random() * 900)}`,
+                nama: nama,
+                tipe: tipe,
+                wilayah: wilayah,
+                rute: rute,
+                posisi: posisi,
+                tujuan: rute.split('-')[1] || "Tujuan",
+                eta: `${eta} WIB`,
+                progress: 10,
+                status: "Tepat Waktu",
+                kecepatan: "80 km/h"
+            };
+
+            trainData.unshift(newKA);
+            renderTrackingTable();
+            updateQuickStats();
+            closeModal('modalKA');
+            showToast(`Jadwal ${nama} berhasil ditambahkan!`, "success");
+            e.target.reset();
+        }
+
+        // --- ADD NEW CARGO DATA ---
+        function addCargoData(e) {
+            e.preventDefault();
+            const pengirim = document.getElementById('logPengirim').value;
+            const jenis = document.getElementById('logJenis').value;
+            const tonase = parseInt(document.getElementById('logTonase').value);
+            const asal = document.getElementById('logAsal').value;
+            const tujuan = document.getElementById('logTujuan').value;
+            const gerbong = parseInt(document.getElementById('logGerbong').value);
+
+            const newResiId = `LOG-2026-${Math.floor(100 + Math.random() * 900)}`;
+
+            const newCargo = {
+                id: newResiId,
+                pengirim: pengirim,
+                jenis: jenis,
+                gerbong: gerbong,
+                tonase: tonase,
+                asal: asal,
+                tujuan: tujuan,
+                kaAssigned: "KA Kargo Regulir",
+                status: "Proses Stafing Depo"
+            };
+
+            cargoData.unshift(newCargo);
+            renderLogistikTable();
+            updateQuickStats();
+            closeModal('modalLogistik');
+            showToast(`Resi Kargo ${newResiId} berhasil terdaftar!`, "success");
+            e.target.reset();
+        }
+
+        // --- REPORT ISSUE HANDLER ---
+        function handleReportSubmit(e) {
+            e.preventDefault();
+            const type = document.getElementById('repType').value;
+            const loc = document.getElementById('repLocation').value;
+            const priority = document.getElementById('repPriority').value;
+            const desc = document.getElementById('repDesc').value;
+
+            const container = document.getElementById('alertListContainer');
+            const alertItem = document.createElement('div');
+            
+            const colorBorder = priority === 'Tinggi' ? 'border-rose-500' : 'border-amber-500';
+            const colorText = priority === 'Tinggi' ? 'text-rose-400' : 'text-amber-400';
+
+            alertItem.className = `bg-slate-950 border-l-4 ${colorBorder} border-y border-r border-slate-800 rounded-r-xl p-4 flex justify-between items-start animate-fade-in`;
+            alertItem.innerHTML = `
+                <div class="space-y-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs font-bold ${colorText}">[${type}]</span>
+                        <span class="text-xs text-slate-200 font-semibold">${loc}</span>
+                    </div>
+                    <p class="text-xs text-slate-400">${desc}</p>
+                    <div class="text-[11px] text-slate-500 pt-1 flex items-center space-x-3">
+                        <span><i class="fa-regular fa-clock"></i> dilaporkan: Baru saja</span>
+                        <span><i class="fa-solid fa-user-shield"></i> Laporan Pengguna</span>
+                    </div>
+                </div>
+                <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded">Prioritas ${priority}</span>
+            `;
+
+            container.prepend(alertItem);
+            showToast("Laporan kendala berhasil dikirim ke Pusat Pengawas!", "success");
+            e.target.reset();
+        }
+
+        // --- SHOW TRAIN DETAILS ---
+        function showTrainDetails(id) {
+            const ka = trainData.find(t => t.id === id);
+            if (ka) {
+                showToast(`Detail ${ka.nama}: Rute ${ka.rute} | Progress: ${ka.progress}%`, "info");
+            }
+        }
+
+        // --- UPDATE QUICK STATS ---
+        function updateQuickStats() {
+            document.getElementById('statTotalKA').innerText = trainData.length;
+            
+            // Calculate total tonase
+            const totalTon = cargoData.reduce((acc, curr) => acc + curr.tonase, 0);
+            document.getElementById('statTonase').innerText = totalTon.toLocaleString('id-ID');
+
+            // Count delays
+            const delays = trainData.filter(t => t.status.includes('Delay')).length;
+            document.getElementById('statDelay').innerText = delays;
+        }
+
+        // --- REALTIME SIMULATOR ---
+        function simulateRealtimeUpdates() {
+            // Randomly update progress of moving trains
+            trainData.forEach(ka => {
+                if (ka.progress < 100) {
+                    ka.progress += Math.floor(Math.random() * 3) + 1;
+                    if (ka.progress > 100) ka.progress = 100;
+                }
+            });
+            renderTrackingTable(null);
+        }
+
+        // --- TOAST SYSTEM ---
+        function showToast(message, type = "info") {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = message;
+
+            if (type === "success") {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400 text-lg";
+            } else if (type === "warning") {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-lg";
+            } else if (type === "error") {
+                toastIcon.className = "fa-solid fa-circle-xmark text-rose-400 text-lg";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-info text-cyan-400 text-lg";
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
